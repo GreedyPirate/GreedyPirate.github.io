@@ -1,0 +1,117 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta name="description" content="Consul实践之集群部署"><meta name="keywords" content="consul,注册中心"><meta name="author" content="紫夜,undefined"><meta name="copyright" content="紫夜"><title>Consul实践之集群部署 | 紫夜の博客</title><link rel="shortcut icon" href="/my-favicon.ico"><link rel="stylesheet" href="/css/index.css?version=1.5.6"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css?version=1.5.6"><link rel="dns-prefetch" href="https://cdn.staticfile.org"><link rel="dns-prefetch" href="https://cdn.bootcss.com"><link rel="dns-prefetch" href="https://creativecommons.org"><link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css"><script src="https://cdn.jsdelivr.net/gh/upupming/gitalk@36368e5dffd049e956cdbbd751ff96c28d8255cf/dist/gitalk.min.js"></script><script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.10.0/js/md5.min.js"></script><link rel="dns-prefetch" href="https://hm.baidu.com"><script>var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?6ba54465c1ff0c31b169e7a89d3dbe37";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();</script><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"We didn't find any results for the search: ${query}"}},
+  copy: {
+    success: 'Copy successfully',
+    error: 'Copy error',
+    noSupport: 'The browser does not support'
+  }
+} </script></head><body><canvas class="fireworks"></canvas><i class="fa fa-arrow-right" id="toggle-sidebar" aria-hidden="true"></i><div id="sidebar"><div class="toggle-sidebar-info text-center"><span data-toggle="Toggle article">Toggle site</span><hr></div><div class="sidebar-toc"><div class="sidebar-toc__title">Catalog</div><div class="sidebar-toc__progress"><span class="progress-notice">You've read</span><span class="progress-num">0</span><span class="progress-percentage">%</span><div class="sidebar-toc__progress-bar"></div></div><div class="sidebar-toc__content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#部署准备"><span class="toc-number">1.</span> <span class="toc-text">部署准备</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#服务器列表"><span class="toc-number">1.1.</span> <span class="toc-text">服务器列表</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#启动server节点"><span class="toc-number">1.2.</span> <span class="toc-text">启动server节点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#组建集群"><span class="toc-number">1.3.</span> <span class="toc-text">组建集群</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#启动client节点"><span class="toc-number">1.4.</span> <span class="toc-text">启动client节点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#ui界面"><span class="toc-number">1.5.</span> <span class="toc-text">ui界面</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#说明"><span class="toc-number">1.5.1.</span> <span class="toc-text">说明</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#配置文件"><span class="toc-number">1.6.</span> <span class="toc-text">配置文件</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#配置文件示例"><span class="toc-number">1.6.1.</span> <span class="toc-text">配置文件示例</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#启动"><span class="toc-number">1.6.2.</span> <span class="toc-text">启动</span></a></li></ol></li></ol></li></ol></div></div><div class="author-info hide"><div class="author-info__avatar text-center"><img src="https://ws1.sinaimg.cn/large/0069RVTdly1ftxifnd6k3j30u00u0gnu.jpg"></div><div class="author-info__name text-center">紫夜</div><div class="author-info__description text-center">stay hungry, stay foolish</div><div class="follow-button"><a href="https://github.com/GreedyPirate" target="_blank">Follow Me</a></div><hr><div class="author-info-articles"><a class="author-info-articles__archives article-meta" href="/archives"><span class="pull-left">Articles</span><span class="pull-right">25</span></a><a class="author-info-articles__tags article-meta" href="/tags"><span class="pull-left">Tags</span><span class="pull-right">15</span></a><a class="author-info-articles__categories article-meta" href="/categories"><span class="pull-left">Categories</span><span class="pull-right">8</span></a></div><hr><div class="author-info-links"><div class="author-info-links__title text-center">Links</div><a class="author-info-links__name text-center" href="https://blog.csdn.net/yj7758423" target="_blank">我的CSDN</a><a class="author-info-links__name text-center" href="https://segmentfault.com/blog/code-craft" target="_blank">膜拜大神</a></div></div></div><div id="content-outer"><div id="top-container" style="background-image: url(https://ws1.sinaimg.cn/large/0069RVTdly1ftxp29hxe9j31hc0u04cf.jpg)"><div id="page-header"><span class="pull-left"> <a id="site-name" href="/">紫夜の博客</a></span><i class="fa fa-bars toggle-menu pull-right" aria-hidden="true"></i><span class="pull-right menus"><a class="site-page social-icon search"><i class="fa fa-search"></i><span> Search</span></a><a class="site-page" href="/">Home</a><a class="site-page" href="/archives">Archives</a><a class="site-page" href="/tags">Tags</a><a class="site-page" href="/categories">Categories</a></span></div><div id="post-info"><div id="post-title">Consul实践之集群部署</div><div id="post-meta"><time class="post-meta__date"><i class="fa fa-calendar" aria-hidden="true"></i> 2018-11-18</time><span class="post-meta__separator">|</span><i class="fa fa-inbox post-meta__icon" aria-hidden="true"></i><a class="post-meta__categories" href="/categories/微服务注册中心/">微服务注册中心</a><div class="post-meta-wordcount"><span>Word count: </span><span class="word-count">1,049</span><span class="post-meta__separator">|</span><span>Reading time: 4 min</span></div></div></div></div><div class="layout" id="content-inner"><article id="post"><div class="article-container" id="post-content"><h1 id="部署准备"><a href="#部署准备" class="headerlink" title="部署准备"></a>部署准备</h1><p>根据上一章中的架构图，进行分布式部署</p>
+<p>首先从<a href="https://www.consul.io/downloads.html" target="_blank" rel="noopener">Consul官网</a>下载最新的安装包, 本文采用1.3.0版本</p>
+<h2 id="服务器列表"><a href="#服务器列表" class="headerlink" title="服务器列表"></a>服务器列表</h2><table>
+<thead>
+<tr>
+<th>节点类型</th>
+<th>名称</th>
+<th>ip</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>server</td>
+<td>server-01</td>
+<td>10.9.188.187</td>
+</tr>
+<tr>
+<td>server</td>
+<td>server-02</td>
+<td>10.9.171.147</td>
+</tr>
+<tr>
+<td>server</td>
+<td>server-03</td>
+<td>10.9.39.37</td>
+</tr>
+<tr>
+<td>client</td>
+<td>client-01</td>
+<td>10.9.181.34</td>
+</tr>
+<tr>
+<td>client</td>
+<td>client-02</td>
+<td>10.9.117.128</td>
+</tr>
+</tbody>
+</table>
+<p>通过wget命令下载Consul到每台服务器中，可以在网页中右键”复制链接”获取下载地址</p>
+<p>下载完成后，通过<code>unzip</code>命令解压</p>
+<h2 id="启动server节点"><a href="#启动server节点" class="headerlink" title="启动server节点"></a>启动server节点</h2><p>启动的命令如下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">nohup ./consul agent -server -<span class="built_in">bind</span>=10.9.188.187 -client=0.0.0.0 -bootstrap-expect=3 -data-dir=./data -datacenter=dc1 -node=server-01 &amp;</span><br></pre></td></tr></table></figure>
+<p>新建<code>start.sh</code>，将以上命令拷贝进来，通过<code>sh start.sh</code>命令启动，接下来说明各个参数的含义</p>
+<ol>
+<li>-server：表示以server的身份启动agent</li>
+<li>-bind：集群内部的通信地址，填写本机ip即可</li>
+<li>-client：可以接受通信的客户端地址，<code>0.0.0.0</code>表示接收来自任意ip的客户端</li>
+<li>-bootstrap-expect：预期的server节点数，只有达到了这个数目，才会形成server集群。注意所有server都应该配置一样的值</li>
+<li>-data-dir：保存数据的目录，建议事先新建，server用它持久化集群状态</li>
+<li>-datacenter：所在的数据中心，默认dc1</li>
+<li>-node：节点名称，最终会显示在界面中</li>
+</ol>
+<h2 id="组建集群"><a href="#组建集群" class="headerlink" title="组建集群"></a>组建集群</h2><p>启动3个server节点之后，只是3个孤立的节点，需要用gossip协议互相告知，在Consul中，使用<code>join</code>命令加入集群</p>
+<p>启动第二台server节点之后，就可以join到第一台server，第三台server节点加入任意一个即可</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">consul join 第一台的ip</span><br></pre></td></tr></table></figure>
+<p>接着使用<code>members</code>检查集群成员</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">consul members</span><br></pre></td></tr></table></figure>
+<p>显示3个Type为server的节点集群，同时3台服务的status为alive</p>
+<p><img src="https://ws4.sinaimg.cn/large/006tNbRwly1fxjdws5ixuj326w050abp.jpg" alt=""></p>
+<p>查看Server集群信息<br><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">consul operator raft list-peers</span><br></pre></td></tr></table></figure></p>
+<p>可以看到Leader节点的信息<br><img src="https://ws4.sinaimg.cn/large/006tNc79ly1fyvjjfcknrj312c04swge.jpg" alt=""></p>
+<h2 id="启动client节点"><a href="#启动client节点" class="headerlink" title="启动client节点"></a>启动client节点</h2><p>启动client的命令如下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">nohup ./consul agent -<span class="built_in">bind</span>=10.9.181.34 -data-dir=./data -client=0.0.0.0 -node=client-01 -ui &amp;</span><br></pre></td></tr></table></figure>
+<p>参数说明</p>
+<ol>
+<li>-ui：启动ui界面，只需要有一个client加入这个参数即可</li>
+<li>其他参数同 server，</li>
+</ol>
+<p>同样的使用join命令加入agent集群</p>
+<h2 id="ui界面"><a href="#ui界面" class="headerlink" title="ui界面"></a>ui界面</h2><p>打开浏览器，输入10.9.181.34:8500，注意ip是添加了<code>-ui</code>参数的client地址</p>
+<p><img src="https://ws3.sinaimg.cn/large/006tNbRwly1fxlfnff3vmj32780h2mze.jpg" alt="Consul控制台首页"></p>
+<h3 id="说明"><a href="#说明" class="headerlink" title="说明"></a>说明</h3><ol>
+<li>Service显示我们的应用服务，其中默认显示了3个Server节点的Consul服务</li>
+<li>Nodes显示所有的agent节点，包括server和client</li>
+<li>K\V是一个key-vlaue存储，可用于分布式锁的实现</li>
+<li>Consul提供了ACL功能，基于ip和port控制请求的畅通</li>
+<li>Intention基于ACL，可以添加服务之间的通信规则，允许或者是禁止通信</li>
+</ol>
+<p>Services中Node Health的含义有些绕，指的是服务所在的agent节点中，通过检查(checks)的个数，check有三个状态：passing(通过), warning(警告),critical(危险)</p>
+<p>节点中的checks包含且不限于健康检查，checks分为节点自身的健康状态检查，注册在节点上的服务的健康状态检查，以及自定义的健康状态检查</p>
+<h2 id="配置文件"><a href="#配置文件" class="headerlink" title="配置文件"></a>配置文件</h2><p>Consul中的启动参数是非常多的，大多数参数都有默认值，完整的参数列表可在<a href="https://www.consul.io/docs/agent/options.html#command-line-options" target="_blank" rel="noopener">Consul 配置</a>中查到。</p>
+<p>Consul按以下3个优先级接收参数：</p>
+<ol>
+<li>命令行参数</li>
+<li>环境变量</li>
+<li>配置文件</li>
+</ol>
+<p>Consul支持json和hcl格式的配置文件，同时也支持指定文件夹的方式，这将按照文件名的词法顺序加载配置文件，例如basic.json先于extra.json加载。后出现的配置项会覆盖前面的配置项</p>
+<p>命令行参数的名称不一定完全和配置文件中的参数名称一样，例如：-node对应node_name</p>
+<h3 id="配置文件示例"><a href="#配置文件示例" class="headerlink" title="配置文件示例"></a>配置文件示例</h3><p>以下是一份配置文件的示例，</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">"datacenter"</span>: <span class="string">"dc1"</span>,</span><br><span class="line">    <span class="attr">"server"</span>: <span class="literal">true</span>,</span><br><span class="line">    <span class="attr">"bootstrap_expect"</span>: <span class="number">3</span>,</span><br><span class="line">    <span class="attr">"node_name"</span>: <span class="string">"server-01"</span>,</span><br><span class="line">    <span class="attr">"bind_addr"</span>: <span class="string">"10.9.188.187"</span>,</span><br><span class="line">    <span class="attr">"client_addr"</span>: <span class="string">"0.0.0.0"</span>,</span><br><span class="line">    <span class="attr">"data_dir"</span>: <span class="string">"./data"</span>,</span><br><span class="line">    <span class="attr">"log_level"</span>: <span class="string">"INFO"</span>,</span><br><span class="line">    <span class="attr">"ports"</span>: &#123;</span><br><span class="line">        <span class="attr">"dns"</span>: <span class="number">8600</span>,</span><br><span class="line">        <span class="attr">"http"</span>: <span class="number">8500</span>,</span><br><span class="line">        <span class="attr">"server"</span>: <span class="number">8300</span>,</span><br><span class="line">        <span class="attr">"serf_lan"</span>: <span class="number">8301</span>,</span><br><span class="line">        <span class="attr">"serf_wan"</span>: <span class="number">8302</span>,</span><br><span class="line">        <span class="attr">"https"</span>: <span class="number">-1</span>,</span><br><span class="line">        <span class="attr">"grpc"</span>: <span class="number">-1</span></span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">"start_join"</span>: [<span class="string">"10.9.181.34"</span>]</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="启动"><a href="#启动" class="headerlink" title="启动"></a>启动</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">nohup ./consul agent -config-dir=./config &amp;</span><br></pre></td></tr></table></figure>
+</div></article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">Author: </span><span class="post-copyright-info"><a href="mailto:undefined">紫夜</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">Link: </span><span class="post-copyright-info"><a href="https://greedypirate.github.io/2018/11/18/Consul实践之集群部署/">https://greedypirate.github.io/2018/11/18/Consul实践之集群部署/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">Copyright Notice: </span><span class="post-copyright-info">All articles in this blog are licensed under <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> unless stating additionally.</span></div></div><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/consul/">consul</a><a class="post-meta__tags" href="/tags/注册中心/">注册中心</a></div><div class="post-qr-code"><div class="post-qr-code-item"><img class="post-qr-code__img" src="https://ws2.sinaimg.cn/large/0069RVTdly1ftxiehjrosj30fk0idmxy.jpg"><div class="post-qr-code__desc">支付宝打赏</div></div><div class="post-qr-code-item"><img class="post-qr-code__img" src="https://ws4.sinaimg.cn/large/0069RVTdly1ftxievplbnj30jb0jddh5.jpg"><div class="post-qr-code__desc">微信打赏</div></div></div><div class="addthis_inline_share_toolbox pull-right"></div><script src="//s7.addthis.com/js/300/addthis_widget.js#pubid=ra-5b6532776de86c85" async></script><nav id="pagination"><div class="prev-post pull-left"><a href="/2018/11/19/Consul实践之Spring-Cloud-Consul项目接入/"><i class="fa fa-chevron-left">  </i><span>Consul实践之Spring Cloud Consul项目接入</span></a></div><div class="next-post pull-right"><a href="/2018/11/16/Consul实践之初识/"><span>Consul实践之初识</span><i class="fa fa-chevron-right"></i></a></div></nav><div id="gitalk-container"></div><script>var gitalk = new Gitalk({
+  clientID: '0349a7a18b86f2a653e3',
+  clientSecret: '567ba8cefbe2ecffbbc04e676652ae4b43e7f952',
+  repo: 'GreedyPirate.github.io',
+  owner: 'GreedyPirate',
+  admin: 'GreedyPirate',
+  id: md5(decodeURI(location.pathname)),
+  language: ''
+})
+gitalk.render('gitalk-container')</script></div></div><footer><div class="layout" id="footer"><div class="copyright">&copy;2018 - 2019 By 紫夜</div><div class="framework-info"><span>Driven - </span><a href="http://hexo.io"><span>Hexo</span></a><span class="footer-separator">|</span><span>Theme - </span><a href="https://github.com/Molunerfinn/hexo-theme-melody"><span>Melody</span></a></div><div class="footer_custom_text">Hi, welcome to my <a href="https://GreedyPirate.github.io">blog</a>!</div><div class="busuanzi"><script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script><span id="busuanzi_container_page_pv"><i class="fa fa-file-o"></i><span id="busuanzi_value_page_pv"></span><span></span></span></div></div></footer><i class="fa fa-arrow-up" id="go-up" aria-hidden="true"></i><script src="/js/third-party/anime.min.js"></script><script src="/js/third-party/jquery.min.js"></script><script src="/js/third-party/jquery.fancybox.min.js"></script><script src="/js/third-party/velocity.min.js"></script><script src="/js/third-party/velocity.ui.min.js"></script><script src="/js/utils.js?version=1.5.6"></script><script src="/js/fancybox.js?version=1.5.6"></script><script src="/js/sidebar.js?version=1.5.6"></script><script src="/js/copy.js?version=1.5.6"></script><script src="/js/fireworks.js?version=1.5.6"></script><script src="/js/transition.js?version=1.5.6"></script><script src="/js/scroll.js?version=1.5.6"></script><script src="/js/head.js?version=1.5.6"></script><script src="/js/search/local-search.js"></script><div class="search-dialog" id="local-search"><div class="search-dialog__title" id="local-search-title">Local search</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="Search for Posts"></div></div></div><hr><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>Powered by</span> <a href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a></div></div></div><span class="search-close-button"><i class="fa fa-times"></i></span></div><div class="search-mask"></div></body></html>

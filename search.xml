@@ -3,27 +3,6 @@
   
     
     <entry>
-      <title>架构演进史(一)</title>
-      <link href="/2019/01/05/%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B%E5%8F%B2(%E4%B8%80)/"/>
-      <url>/2019/01/05/%E6%9E%B6%E6%9E%84%E6%BC%94%E8%BF%9B%E5%8F%B2(%E4%B8%80)/</url>
-      <content type="html"><![CDATA[<blockquote><p>本系列希望通过自己的所见所闻，描述出一个公司在不断发展的过程中遇到的一般性架构演进</p></blockquote>]]></content>
-      
-      <categories>
-          
-          <category> 架构随笔录 </category>
-          
-      </categories>
-      
-      
-        <tags>
-            
-            <tag> 架构 </tag>
-            
-        </tags>
-      
-    </entry>
-    
-    <entry>
       <title>Spring boot实践之多数据源最佳实践</title>
       <link href="/2019/01/05/Spring-boot%E5%AE%9E%E8%B7%B5%E4%B9%8B%E5%A4%9A%E6%95%B0%E6%8D%AE%E6%BA%90%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/"/>
       <url>/2019/01/05/Spring-boot%E5%AE%9E%E8%B7%B5%E4%B9%8B%E5%A4%9A%E6%95%B0%E6%8D%AE%E6%BA%90%E6%9C%80%E4%BD%B3%E5%AE%9E%E8%B7%B5/</url>
@@ -376,27 +355,6 @@
     </entry>
     
     <entry>
-      <title>适配器模式</title>
-      <link href="/2018/08/14/%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F/"/>
-      <url>/2018/08/14/%E9%80%82%E9%85%8D%E5%99%A8%E6%A8%A1%E5%BC%8F/</url>
-      <content type="html"><![CDATA[]]></content>
-      
-      <categories>
-          
-          <category> 设计模式 </category>
-          
-      </categories>
-      
-      
-        <tags>
-            
-            <tag> 设计模式 </tag>
-            
-        </tags>
-      
-    </entry>
-    
-    <entry>
       <title>Spring Cloud系列前言</title>
       <link href="/2018/08/10/Spring-Cloud%E7%B3%BB%E5%88%97%E5%89%8D%E8%A8%80/"/>
       <url>/2018/08/10/Spring-Cloud%E7%B3%BB%E5%88%97%E5%89%8D%E8%A8%80/</url>
@@ -414,31 +372,6 @@
             <tag> Spring Cloud </tag>
             
             <tag> 微服务 </tag>
-            
-        </tags>
-      
-    </entry>
-    
-    <entry>
-      <title>Spring 使用TransactionSynchronizationManager在事务提交之后操作</title>
-      <link href="/2018/08/04/Spring-%E4%BD%BF%E7%94%A8TransactionSynchronizationManager%E5%9C%A8%E4%BA%8B%E5%8A%A1%E6%8F%90%E4%BA%A4%E4%B9%8B%E5%90%8E%E6%93%8D%E4%BD%9C/"/>
-      <url>/2018/08/04/Spring-%E4%BD%BF%E7%94%A8TransactionSynchronizationManager%E5%9C%A8%E4%BA%8B%E5%8A%A1%E6%8F%90%E4%BA%A4%E4%B9%8B%E5%90%8E%E6%93%8D%E4%BD%9C/</url>
-      <content type="html"><![CDATA[<p>需求: 在事务执行成功后，再去进行某一项操作,如发送邮件、短信等，此类事件通常是非及时触发的，所以采用异步执行</p><h2 id="TransactionSynchronizationManager"><a href="#TransactionSynchronizationManager" class="headerlink" title="TransactionSynchronizationManager"></a>TransactionSynchronizationManager</h2><p>使用TransactionSynchronizationManager注册一个事务同步适配器，以下代码会在插入一个User对象后输出一段文字，</p><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Transactional</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> Boolean <span class="title">regist</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    User jack = User.builder().name(<span class="string">"jack"</span>).phone(<span class="string">"110"</span>).build();</span><br><span class="line">    userDao.save(jack);</span><br><span class="line"></span><br><span class="line">    TransactionSynchronizationManager.registerSynchronization(<span class="keyword">new</span> TransactionSynchronizationAdapter() &#123;</span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">getOrder</span><span class="params">()</span> </span>&#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">afterCommit</span><span class="params">()</span> </span>&#123;</span><br><span class="line">            System.out.println(<span class="string">"send a mail"</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">    &#125;);</span><br><span class="line">    <span class="keyword">if</span> (<span class="keyword">true</span>) <span class="keyword">throw</span> <span class="keyword">new</span> RuntimeException(<span class="string">"fail insert"</span>);</span><br><span class="line">    <span class="keyword">return</span> Boolean.FALSE;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><p>getOrder方法的作用:<em>They will be executed in an order according to their order value (if any)</em></p><p>注册的适配器按照顺序执行，例如我可以先发邮件，再发短信，但在异步机制中无法保证有序</p><p><code>TransactionSynchronization</code>接口中还提供了以下方法</p><ul><li>beforeCommit：事务提交之前，在<code>beforeCompletion</code>之前</li><li>beforeCompletion: 事务提交/回滚之前</li><li>afterCompletion: 事务提交/回滚之后</li></ul><h2 id="异步执行"><a href="#异步执行" class="headerlink" title="异步执行"></a>异步执行</h2><p>初始化一个线程池</p><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Configuration</span></span><br><span class="line"><span class="meta">@EnableAsync</span></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">TaskPoolConfig</span> </span>&#123;</span><br><span class="line">    <span class="meta">@Bean</span>(<span class="string">"taskExecutor"</span>)</span><br><span class="line">    <span class="function"><span class="keyword">public</span> Executor <span class="title">taskExecutor</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        ThreadPoolTaskExecutor executor = <span class="keyword">new</span> ThreadPoolTaskExecutor();</span><br><span class="line">        executor.setCorePoolSize(<span class="number">10</span>);</span><br><span class="line">        executor.setMaxPoolSize(<span class="number">20</span>);</span><br><span class="line">        executor.setQueueCapacity(<span class="number">200</span>);</span><br><span class="line">        executor.setKeepAliveSeconds(<span class="number">60</span>);</span><br><span class="line">        executor.setThreadNamePrefix(<span class="string">"taskExecutor-"</span>);</span><br><span class="line">        executor.setRejectedExecutionHandler(<span class="keyword">new</span> ThreadPoolExecutor.CallerRunsPolicy());</span><br><span class="line">        <span class="keyword">return</span> executor;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><p>编写异步任务代码</p><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">@Service</span><br><span class="line">public class NotifyService &#123;</span><br><span class="line">    @Async</span><br><span class="line">    public void sendMail(String message)&#123;</span><br><span class="line">        System.out.println(message);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure><p>在afterCommit中调用即可</p><p>参考：</p><ol><li><a href="https://segmentfault.com/a/1190000004235193" target="_blank" rel="noopener">https://segmentfault.com/a/1190000004235193</a></li><li><a href="http://azagorneanu.blogspot.com/2013/06/transaction-synchronization-callbacks.html" target="_blank" rel="noopener">http://azagorneanu.blogspot.com/2013/06/transaction-synchronization-callbacks.html</a></li></ol>]]></content>
-      
-      <categories>
-          
-          <category> Spring </category>
-          
-      </categories>
-      
-      
-        <tags>
-            
-            <tag> Spring </tag>
-            
-            <tag> 事务 </tag>
-            
-            <tag> 异步 </tag>
             
         </tags>
       

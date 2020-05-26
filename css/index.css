@@ -375,16 +375,16 @@ blockquote {
   border: none;
 }
 .article-container pre .deletion {
-  background: #fdd;
+  background: #008000;
 }
 .article-container pre .addition {
-  background: #dfd;
+  background: #800000;
 }
 .article-container pre .meta {
   color: #7c4dff;
 }
 .article-container pre .comment {
-  color: rgba(144,164,174,0.565);
+  color: #a09076;
 }
 .article-container pre .comment::selection {
   background: rgba(128,203,196,0.251);

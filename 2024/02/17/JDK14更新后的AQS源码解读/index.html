@@ -1,0 +1,475 @@
+<!DOCTYPE html><html lang="zh-Hans"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta name="description" content="JDK14更新后的AQS源码解读"><meta name="keywords" content="积累"><meta name="author" content="紫夜"><meta name="copyright" content="紫夜"><title>JDK14更新后的AQS源码解读 | 紫夜の博客</title><link rel="shortcut icon" href="/melody-favicon.ico"><link rel="stylesheet" href="/css/index.css?version=1.9.1"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@latest/css/font-awesome.min.css?version=1.9.1"><meta name="format-detection" content="telephone=no"><meta http-equiv="x-dns-prefetch-control" content="on"><link rel="dns-prefetch" href="https://cdn.jsdelivr.net"><link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css"><script src="https://cdn.jsdelivr.net/npm/gitalk@latest/dist/gitalk.min.js"></script><script src="https://cdn.jsdelivr.net/npm/blueimp-md5@2.10.0/js/md5.min.js"></script><meta http-equiv="Cache-Control" content="no-transform"><meta http-equiv="Cache-Control" content="no-siteapp"><script>var GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"search.xml","languages":{"hits_empty":"找不到您查询的内容:${query}"}},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  hexoVersion: '7.3.0'
+} </script><meta name="generator" content="Hexo 7.3.0"></head><body><canvas class="fireworks"></canvas><i class="fa fa-arrow-right" id="toggle-sidebar" aria-hidden="true"></i><div id="sidebar" data-display="true"><div class="toggle-sidebar-info text-center"><span data-toggle="切换文章详情">切换站点概览</span><hr></div><div class="sidebar-toc"><div class="sidebar-toc__title">目录</div><div class="sidebar-toc__progress"><span class="progress-notice">你已经读了</span><span class="progress-num">0</span><span class="progress-percentage">%</span><div class="sidebar-toc__progress-bar"></div></div><div class="sidebar-toc__content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">1.</span> <span class="toc-text">前言</span></a></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">2.</span> <span class="toc-text">预备知识</span></a></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">3.</span> <span class="toc-text">术语</span></a></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">4.</span> <span class="toc-text">ReentrantLock加锁过程</span></a></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">5.</span> <span class="toc-text">acquire核心流程</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E6%95%B0%E8%AF%B4%E6%98%8E"><span class="toc-number">5.1.</span> <span class="toc-text">参数说明</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BF%94%E5%9B%9E%E5%80%BC%E8%AF%B4%E6%98%8E"><span class="toc-number">5.1.1.</span> <span class="toc-text">返回值说明</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%B5%81%E7%A8%8B%E5%9B%BE"><span class="toc-number">5.2.</span> <span class="toc-text">流程图</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%B1%BB%E5%9B%BE"><span class="toc-number">5.3.</span> <span class="toc-text">类图</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AD%97%E6%AE%B5%E8%AF%B4%E6%98%8E"><span class="toc-number">5.3.1.</span> <span class="toc-text">字段说明</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%A3%E7%A0%81%E8%A7%A3%E6%9E%90"><span class="toc-number">5.4.</span> <span class="toc-text">代码解析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%B5%81%E7%A8%8B%E7%AE%80%E8%BF%B0"><span class="toc-number">5.4.1.</span> <span class="toc-text">流程简述</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%89%A7%E8%A1%8C%E7%BB%86%E8%8A%82"><span class="toc-number">5.4.2.</span> <span class="toc-text">执行细节</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%80%E4%B8%AAIf"><span class="toc-number">5.4.2.1.</span> <span class="toc-text">第一个If</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%8C%E4%B8%AAif"><span class="toc-number">5.4.2.2.</span> <span class="toc-text">第二个if</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%89%E4%B8%AAif"><span class="toc-number">5.4.2.3.</span> <span class="toc-text">第三个if</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#acquireOnOOME"><span class="toc-number">5.4.2.3.1.</span> <span class="toc-text">acquireOnOOME</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%9B%9B%E4%B8%AAif"><span class="toc-number">5.4.2.4.</span> <span class="toc-text">第四个if</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%BA%94%E4%B8%AAif"><span class="toc-number">5.4.2.5.</span> <span class="toc-text">第五个if</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%85%AD%E4%B8%AAif"><span class="toc-number">5.4.2.6.</span> <span class="toc-text">第六个if</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E4%B8%83%E4%B8%AAif"><span class="toc-number">5.4.2.7.</span> <span class="toc-text">第七个if</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AC%AC%E5%85%AB%E4%B8%AAif"><span class="toc-number">5.4.2.8.</span> <span class="toc-text">第八个if</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%85%B3%E4%BA%8E%E8%87%AA%E6%97%8B%E6%AC%A1%E6%95%B0spins%E4%B8%8EpostSpins"><span class="toc-number">5.4.2.9.</span> <span class="toc-text">关于自旋次数spins与postSpins</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#return-cancelAcquire"><span class="toc-number">5.4.3.</span> <span class="toc-text">return cancelAcquire</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#cleanQueue%E6%96%B9%E6%B3%95%E5%88%86%E6%9E%90"><span class="toc-number">5.4.4.</span> <span class="toc-text">cleanQueue方法分析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%89%A7%E8%A1%8C%E9%80%BB%E8%BE%91"><span class="toc-number">5.4.4.1.</span> <span class="toc-text">执行逻辑</span></a></li></ol></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">6.</span> <span class="toc-text">ReentrantLock释放锁锁过程</span></a></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">7.</span> <span class="toc-text">公平锁</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8A%A0%E9%94%81"><span class="toc-number">7.1.</span> <span class="toc-text">加锁</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#initialTryLock%E5%8C%BA%E5%88%AB"><span class="toc-number">7.1.1.</span> <span class="toc-text">initialTryLock区别</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#hasQueuedThreads%E5%AE%9E%E7%8E%B0"><span class="toc-number">7.1.1.1.</span> <span class="toc-text">hasQueuedThreads实现</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#tryAcquire%E5%8C%BA%E5%88%AB"><span class="toc-number">7.1.2.</span> <span class="toc-text">tryAcquire区别</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#hasQueuedPredecessors"><span class="toc-number">7.1.2.1.</span> <span class="toc-text">hasQueuedPredecessors</span></a></li></ol></li></ol></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link"><span class="toc-number">8.</span> <span class="toc-text">参考</span></a></li></ol></div></div><div class="author-info hide"><div class="author-info__avatar text-center"><img src="https://pic1.imgdb.cn/item/67b2fda8d0e0a243d4003553.webp"></div><div class="author-info__name text-center">紫夜</div><div class="author-info__description text-center">stay hungry, stay foolish</div><hr><div class="author-info-articles"><a class="author-info-articles__archives article-meta" href="/archives"><span class="pull-left">文章</span><span class="pull-right">69</span></a><a class="author-info-articles__tags article-meta" href="/tags"><span class="pull-left">标签</span><span class="pull-right">24</span></a><a class="author-info-articles__categories article-meta" href="/categories"><span class="pull-left">分类</span><span class="pull-right">11</span></a></div></div></div><div id="content-outer"><div id="top-container" style="background-image: url(https://pic1.imgdb.cn/item/67b2fd4ed0e0a243d4003518.webp)"><div id="page-header"><span class="pull-left"> <a id="site-name" href="/">紫夜の博客</a></span><i class="fa fa-bars toggle-menu pull-right" aria-hidden="true"></i><span class="pull-right menus">   <a class="site-page" href="/">Home</a><a class="site-page" href="/archives">Archives</a><a class="site-page" href="/tags">Tags</a><a class="site-page" href="/categories">Categories</a></span><span class="pull-right"><a class="site-page social-icon search"><i class="fa fa-search"></i><span> 搜索</span></a></span></div><div id="post-info"><div id="post-title">JDK14更新后的AQS源码解读</div><div id="post-meta"><time class="post-meta__date"><i class="fa fa-calendar" aria-hidden="true"></i> 2024-02-17</time><span class="post-meta__separator">|</span><i class="fa fa-inbox post-meta__icon" aria-hidden="true"></i><a class="post-meta__categories" href="/categories/%E6%8A%80%E6%9C%AF%E7%A7%AF%E7%B4%AF/">技术积累</a><div class="post-meta-wordcount"><span>字数总计: </span><span class="word-count">6.6k</span><span class="post-meta__separator">|</span><span>阅读时长: 24 分钟</span></div></div></div></div><div class="layout" id="content-inner"><article id="post"><div class="article-container" id="post-content"><blockquote>
+<p>在JDK 14版本，Doug Lea对AQS的实现进行了一次大的变更，但基本的数据结构还是基于CLH的同步队列+单链表的等待队列<br>
+相比之前的版本，新版的AQS最明显的变化是：尽量延后线程节点进入队列的时间<br>
+<a target="_blank" rel="noopener" href="https://github.com/openjdk/jdk/commit/80fe274875a084794ccafcd00696586e384255b1#diff-df601946e34ba1a4e15b5302ded3df444d459aac78dc55baa3f9716d4ecccfa8R635">具体代码改动见github</a></p>
+</blockquote>
+<h1>前言</h1>
+<p>本文注意以ReentrantLock为例，分析AQS加锁与释放锁的过程，以及线程在同步队列和等待队列之间的转换</p>
+<h1>预备知识</h1>
+<ol>
+<li>CLH无锁队列的基本原理</li>
+<li>自旋等待的代码实现</li>
+<li>LockSupport常用方法的功能</li>
+<li>Unsafe与VarHandle的使用</li>
+<li>可重入锁的概念</li>
+<li>位运算符的使用</li>
+</ol>
+<h1>术语</h1>
+<p>为了区分tryLock和lock，try代表只执行一次，下文中我称之为惰性操作，而lock是在死循环中自选等待，直到抢到锁，我称之为贪婪操作</p>
+<h1>ReentrantLock加锁过程</h1>
+<p>以ReentrantLock.lock()为例，分析加锁的过程，其调用内部类Sync.lock()方法。Sync属于抽象类，本身继承了抽象类AbstractQueuedSynchronizer(以下简称AQS)，而提到抽象类，大多和模板方法设计模式有关<br>
+因此Sync.lock()和AQS.acquire中为调用的主流程，而2个子类FairSync和NonfairSync实现了各自tryAcquire时的差异化逻辑<br>
+<img src="https://pic1.imgdb.cn/item/67b4dedad0e0a243d4009bbb.png" alt="类图"><br>
+在没有认识到AQS的同步队列之前，此处先不讲述hasQueuedPredecessors等方法，以下先以非公平锁为例讲解</p>
+<p>Sync.lock()方法较为简单，前言中提到新版AQS尽量延后线程节点进入队列的时间，initialTryLock正是一种体现，以非公平锁为例，快速看下initialTryLock的流程</p>
+<ol>
+<li>如果AQS中的state同步变量为0，并且设置成1成功，就把当前线程设置为独占锁的持有者，返回true</li>
+<li>如果当前线程已经是独占锁的持有线程了，表示当前是锁的重入过程，state+1</li>
+<li>否则获取锁失败</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">final</span> <span class="keyword">void</span> <span class="title function_">lock</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (!initialTryLock())</span><br><span class="line">        acquire(<span class="number">1</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">initialTryLock</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="type">Thread</span> <span class="variable">current</span> <span class="operator">=</span> Thread.currentThread();</span><br><span class="line">    <span class="keyword">if</span> (compareAndSetState(<span class="number">0</span>, <span class="number">1</span>)) &#123; <span class="comment">// first attempt is unguarded</span></span><br><span class="line">        setExclusiveOwnerThread(current);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (getExclusiveOwnerThread() == current) &#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">c</span> <span class="operator">=</span> getState() + <span class="number">1</span>;</span><br><span class="line">        <span class="keyword">if</span> (c &lt; <span class="number">0</span>) <span class="comment">// overflow</span></span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">Error</span>(<span class="string">&quot;Maximum lock count exceeded&quot;</span>);</span><br><span class="line">        setState(c);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>虽然这个方法很简单，但是有几点说明</p>
+<ol>
+<li>这是个惰性操作，只是尝试一次获取锁</li>
+<li>为什么直接调用了setState而不是compareAndSetState，虽然原因很简单，getExclusiveOwnerThread() == current表示当前线程获取到了这把独占锁，别的线程是无法修改的，所以可以直接设置。<br>
+但是什么时候<strong>可以不通过cas，而是直接赋值</strong>是我们需要关心的，后面的源码还有很多这类操作，所以<strong>在直接赋值时要反推，是否代表当前线程已经获取到了锁，或者说操作是线程安全的</strong></li>
+</ol>
+<p>initialTryLock失败后，回到acquire(1)方法，其内部实现如下</p>
+<ol>
+<li>先调用tryAcquire尝试加锁(惰性操作)，然后调用AQS的acquire方法</li>
+<li>tryAcquire只是简单尝试加锁，但是为什么不考虑可重入性呢？<br>
+原因是initialTryLock已经判断过当前线程持有锁的情况，所以这里可以不考虑可重入<br>
+而在后面也会多次调用该方法，但是是在线程明确没有获取锁的情况下，所以也不需要考虑可重入</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">acquire(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title function_">acquire</span><span class="params">(<span class="type">int</span> arg)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (!tryAcquire(arg))</span><br><span class="line">        acquire(<span class="literal">null</span>, arg, <span class="literal">false</span>, <span class="literal">false</span>, <span class="literal">false</span>, <span class="number">0L</span>);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">tryAcquire</span><span class="params">(<span class="type">int</span> acquires)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (getState() == <span class="number">0</span> &amp;&amp; compareAndSetState(<span class="number">0</span>, acquires)) &#123;</span><br><span class="line">        setExclusiveOwnerThread(Thread.currentThread());</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h1>acquire核心流程</h1>
+<h2 id="参数说明">参数说明</h2>
+<p>首先看方法形参说明和实参列表的对应关系</p>
+<table>
+<thead>
+<tr>
+<th>形参名</th>
+<th>说明</th>
+<th>实参</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>node</td>
+<td>线程节点或条件节点（传入为 null，仅考虑线程节点）</td>
+<td>null</td>
+</tr>
+<tr>
+<td>arg</td>
+<td>需要获取的参数（通常为加锁次数或资源数）</td>
+<td>1</td>
+</tr>
+<tr>
+<td>shared</td>
+<td>共享模式（true）或独占模式（false）</td>
+<td>false</td>
+</tr>
+<tr>
+<td>interruptible</td>
+<td>是否响应中断（true 会返回负数表示中断）</td>
+<td>false</td>
+</tr>
+<tr>
+<td>timed</td>
+<td>是否定时阻塞（true 启用超时机制）</td>
+<td>false</td>
+</tr>
+<tr>
+<td>time</td>
+<td>定时阻塞的到期时间（单位：纳秒，timed 为 true 时生效）</td>
+<td>0L</td>
+</tr>
+</tbody>
+</table>
+<p>acquire(null, arg, false, false, false, 0L)，即以独占模式，不可中断，不定时阻塞进行加锁</p>
+<h3 id="返回值说明">返回值说明</h3>
+<table>
+<thead>
+<tr>
+<th>返回值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>正数</td>
+<td>加锁成功</td>
+</tr>
+<tr>
+<td>0</td>
+<td>加锁超时</td>
+</tr>
+<tr>
+<td>负数</td>
+<td>加锁过程中被中断</td>
+</tr>
+</tbody>
+</table>
+<h2 id="流程图">流程图</h2>
+<p>下图是整个acquire流程，在后面的讲解中，配合此图来看(看不清单击两次)<br>
+<img src="https://pic1.imgdb.cn/item/67b4eef3d0e0a243d4009beb.png" alt="acquire流程"></p>
+<h2 id="类图">类图</h2>
+<p>下图是acquire流程涉及到的类图<br>
+<a target="_blank" rel="noopener" href="https://pic1.imgdb.cn/item/67b650aed0e0a243d400da60.png"><img src="https://pic1.imgdb.cn/item/67b650aed0e0a243d400da60.png" alt="类图"></a></p>
+<h3 id="字段说明">字段说明</h3>
+<p>重点对AQS和Node的字段进行说明，方法在下文讲解中说明</p>
+<table>
+<thead>
+<tr>
+<th><strong>字段</strong></th>
+<th><strong>类型/值</strong></th>
+<th><strong>描述</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AQS 成员变量</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>head</code></td>
+<td>volatile Node</td>
+<td>CLH 双链表队列的头节点</td>
+</tr>
+<tr>
+<td><code>tail</code></td>
+<td>volatile Node</td>
+<td>CLH 双链表队列的尾节点</td>
+</tr>
+<tr>
+<td><code>state</code></td>
+<td>volatile int</td>
+<td>同步变量</td>
+</tr>
+<tr>
+<td><strong>Node 内部类</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>prev</code></td>
+<td>volatile Node</td>
+<td>前驱节点</td>
+</tr>
+<tr>
+<td><code>next</code></td>
+<td>volatile Node</td>
+<td>后继节点</td>
+</tr>
+<tr>
+<td><code>waiter</code></td>
+<td>Thread</td>
+<td>当前节点关联的等待线程</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>volatile int</td>
+<td>节点状态，取值如下：</td>
+</tr>
+<tr>
+<td><strong>status 状态</strong></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>初始状态</td>
+<td>空闲状态，可进入同步队列或转为取消状态</td>
+</tr>
+<tr>
+<td><code>WAITING(1)</code></td>
+<td>等待状态</td>
+<td>表示节点正在等待获取锁</td>
+</tr>
+<tr>
+<td><code>CANCELLED(0x80000000)</code></td>
+<td>负数（取消状态）</td>
+<td>表示节点已取消获取锁（通常是线程中断或超时导致）</td>
+</tr>
+<tr>
+<td><code>COND(2)</code></td>
+<td>条件等待</td>
+<td>表示在等待队列中</td>
+</tr>
+</tbody>
+</table>
+<h2 id="代码解析">代码解析</h2>
+<p>acquire的代码很长，我们需要逐步分解，先看定义的几个局部变量<br>
+完整代码见<a target="_blank" rel="noopener" href="https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/locks/AbstractQueuedSynchronizer.java#L704">github</a>或本地ide查看</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Thread</span> <span class="variable">current</span> <span class="operator">=</span> Thread.currentThread();</span><br><span class="line"><span class="type">byte</span> <span class="variable">spins</span> <span class="operator">=</span> <span class="number">0</span>, postSpins = <span class="number">0</span>;  <span class="comment">// 自旋重试次数相关</span></span><br><span class="line"><span class="type">boolean</span> <span class="variable">interrupted</span> <span class="operator">=</span> <span class="literal">false</span>, first = <span class="literal">false</span>;</span><br><span class="line"><span class="type">Node</span> <span class="variable">pred</span> <span class="operator">=</span> <span class="literal">null</span>;           	<span class="comment">// 如果node入队了，表示node的前驱节点,否则为null</span></span><br></pre></td></tr></table></figure>
+<p>此处重点说明<strong>first</strong>的含义，主要和head做区分。first节点(下文称为首节点)，即head(头节点)的后驱节点，有以下特点：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">head.next == first</span><br><span class="line">first.prev == head</span><br><span class="line">first.prev.prev == <span class="literal">null</span></span><br></pre></td></tr></table></figure>
+<p><a target="_blank" rel="noopener" href="https://pic1.imgdb.cn/item/67b5f3e7d0e0a243d400d4f2.png"><img src="https://pic1.imgdb.cn/item/67b5f3e7d0e0a243d400d4f2.png" alt="节点含义"></a></p>
+<h3 id="流程简述">流程简述</h3>
+<p>接下来是死循环内获取锁的逻辑，代码很长，首先我们看下它翻译后的注释<br>
+注: 以下的队列表示同步队列，入队指插入同步队列的队尾</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">循环执行:</span><br><span class="line"><span class="number">1.</span> 检查传入的node是否是首节点</span><br><span class="line">	如果是，保证head节点稳定性(比如是否被其他线程修改), 否则确保node的前驱节点有效(比如是否成为了无效节点)</span><br><span class="line"><span class="number">2.</span> 如果node是首节点或者还没有入队, 直接尝试获取锁</span><br><span class="line">	如果队列还没初始化，<span class="keyword">new</span>一个dummy节点成为head；在出现OOM时，调用tryAcquire系列方法，自旋重试直到成功获取锁</span><br><span class="line"><span class="number">3.</span> 如果线程还没被包装为node，则创建node；在出现OOM时，同上</span><br><span class="line"><span class="number">4.</span> 如果还没入队，尝试一次入队</span><br><span class="line"><span class="number">5.</span> 如果从park处被唤醒，先自旋尝试postSpins次，然后再阻塞，交替执行，这样降低线程阻塞的频率，这是线程上下文切换的代价造成</span><br><span class="line"><span class="number">6.</span> 如果还没设置WAITING状态，设置并重试</span><br><span class="line"><span class="number">7.</span> 否则park阻塞，清除WAITING状态，检查并清理队列中取消的几点</span><br></pre></td></tr></table></figure>
+<p>以上翻译不完全直译原文，有部分自己的补充</p>
+<h3 id="执行细节">执行细节</h3>
+<p>获取锁的执行过程包裹在for(;;)中，包含了<strong>8个大的(else)if</strong>，结合上文的流程描述和流程图，下面从判断逻辑和执行逻辑分步骤分析这8个if</p>
+<h4 id="第一个If">第一个If</h4>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (!first &amp;&amp; (pred = (node == <span class="literal">null</span>) ? <span class="literal">null</span> : node.prev) != <span class="literal">null</span> &amp;&amp;</span><br><span class="line">    !(first = (head == pred))) &#123;</span><br><span class="line">    <span class="keyword">if</span> (pred.status &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        cleanQueue();           <span class="comment">// predecessor cancelled</span></span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (pred.prev == <span class="literal">null</span>) &#123;</span><br><span class="line">        Thread.onSpinWait();    <span class="comment">// ensure serialization</span></span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>if的判断逻辑</strong>: if条件比较复杂，包含了赋值语句和比较，我们简化为：这是在判断node已经入队的情况下，不是首节点，并且前驱不为空的情况</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 简化版：</span></span><br><span class="line"><span class="keyword">if</span> (node == <span class="literal">null</span>)</span><br><span class="line">    pred = <span class="literal">null</span></span><br><span class="line"><span class="keyword">else</span></span><br><span class="line">    pred = node.<span class="type">prev</span></span><br><span class="line"></span><br><span class="line"><span class="variable">first</span> <span class="operator">=</span> head == pred</span><br><span class="line"><span class="title function_">if</span><span class="params">(!first &amp;&amp; pred != <span class="literal">null</span>)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (pred.status &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        cleanQueue();    </span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (pred.prev == <span class="literal">null</span>) &#123;</span><br><span class="line">        Thread.onSpinWait();  </span><br><span class="line">        <span class="keyword">continue</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>if的执行逻辑</strong>是：</p>
+<ol>
+<li>如果node的前驱节点处于取消状态(status&lt;0)，清理队列中所有取消状态的节点。<a href="#cleanQueue%E6%96%B9%E6%B3%95%E5%88%86%E6%9E%90">cleanQueue方法分析</a>作为补充，此时可以先不关心</li>
+<li>如果前驱的前驱为null，告诉jvm处于自旋等待状态，此时说明node是首节点<br>
+这两步都进行了continue进入下一轮循环，说明这是在node进入队列获取锁之前做的稳定性措施</li>
+</ol>
+<p>回顾传入的参数：acquire(null, arg, false, false, false, 0L)，第一个参数为node，明显不满足if条件，所以<strong>第一次循环if肯定不会执行的</strong></p>
+<h4 id="第二个if">第二个if</h4>
+<p>第一个if在首次不执行的情况下，第二个if才是真正的流程入口，源码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (first || pred == <span class="literal">null</span>) &#123;</span><br><span class="line">    <span class="type">boolean</span> acquired;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="keyword">if</span> (shared)</span><br><span class="line">            acquired = (tryAcquireShared(arg) &gt;= <span class="number">0</span>);</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            acquired = tryAcquire(arg);</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Throwable ex) &#123;</span><br><span class="line">        cancelAcquire(node, interrupted, <span class="literal">false</span>);</span><br><span class="line">        <span class="keyword">throw</span> ex;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (acquired) &#123;</span><br><span class="line">        <span class="keyword">if</span> (first) &#123;</span><br><span class="line">            node.prev = <span class="literal">null</span>;</span><br><span class="line">            head = node;</span><br><span class="line">            pred.next = <span class="literal">null</span>;</span><br><span class="line">            node.waiter = <span class="literal">null</span>;</span><br><span class="line">            <span class="keyword">if</span> (shared)</span><br><span class="line">                signalNextIfShared(node);</span><br><span class="line">            <span class="keyword">if</span> (interrupted)</span><br><span class="line">                current.interrupt();</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>if判断逻辑</strong>：</p>
+<ol>
+<li>如果node是首节点，或者node的前驱节点为null</li>
+</ol>
+<p>从第一个if看，node肯定为null，pred也必定为null，可以理解为线程还没有入队</p>
+<p>思考：pred==null有没有可能是线程已经入队成为node，但是node的前驱为null呢?<br>
+不会，我的理解是node不可能在前驱节点为null的情况下还来获取锁，pred为null表示node是头节点,而头节点表示已经获取到了锁，还未释放的状态(或者头节点是dummy)，node没有必要再去获取锁，下面的代码也会验证我的想法</p>
+<p><strong>执行逻辑</strong>：</p>
+<ol>
+<li>如果传入的shared为true，调用tryAcquireShared方法，否则调用tryAcquire方法<br>
+异常则取消获取锁，cancelAcquire方法分析见<a href="#return-cancelAcquire">return cancelAcquire</a></li>
+<li>如果获取锁成功，但没入队的情况，直接返回1，表示加锁成功</li>
+<li>如果通过入队的方式成为了首节点，并且获取锁成功，则进行双链表的维护，让原来的head节点出队<br>
+如果是共享锁，则不需要等待释放，直接唤醒下一个节点<br>
+如果收到了中断信号，重置中断标志位<br>
+返回整数1，表示加锁成功，</li>
+</ol>
+<p><strong>双链表维护</strong>：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">node.prev = <span class="literal">null</span>;</span><br><span class="line">head = node;</span><br><span class="line">pred.next = <span class="literal">null</span>;</span><br><span class="line">node.waiter = <span class="literal">null</span>;</span><br></pre></td></tr></table></figure>
+<ol>
+<li>node前驱指向null</li>
+<li>head指向node，即node成为新head</li>
+<li>前驱.next本来指向node,改为指向null，即老head出队</li>
+<li>node获取锁之后，取消对当前线程的指向，方便jvm gc</li>
+</ol>
+<p>上述双链表节点变化示意图如下，值得注意的是原来的head节点出队，node2成为新的head节点，node3成为新的first节点<br>
+<a target="_blank" rel="noopener" href="https://pic1.imgdb.cn/item/67b5f42cd0e0a243d400d4fb.png"><img src="https://pic1.imgdb.cn/item/67b5f42cd0e0a243d400d4fb.png" alt="节点变化"></a></p>
+<p>思考：为什么双链表的变更不用考虑线程安全为题？<br>
+因为此时线程已经加锁成功，没有其他线程能够改变head节点和node.pred节点</p>
+<h4 id="第三个if">第三个if</h4>
+<p>这里主要是初始化队列，失败则调用acquireOnOOME</p>
+<p><strong>判断逻辑</strong>：tail为null</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Node t;</span><br><span class="line"><span class="keyword">if</span> ((t = tail) == <span class="literal">null</span>) &#123;           <span class="comment">// initialize queue</span></span><br><span class="line">    <span class="keyword">if</span> (tryInitializeHead() == <span class="literal">null</span>)</span><br><span class="line">        <span class="keyword">return</span> acquireOnOOME(shared, arg);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>执行逻辑</strong>：<br>
+tryInitializeHead主要是为了初始化dummy节点，并且让head和tail都指向dummy节点，最后返回tail节点</p>
+<ol>
+<li>如果tail不为null，说明不需要初始化，直接返回tail</li>
+<li>如果tail为null但是head不为null，说明head当前是中间态，未被释放，通过自旋等待head指向正确</li>
+<li>初始化一个独占节点，cas设置head指向独占节点</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> Node <span class="title function_">tryInitializeHead</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">Node</span> <span class="variable">h</span> <span class="operator">=</span> <span class="literal">null</span>, t;;) &#123;</span><br><span class="line">        <span class="keyword">if</span> ((t = tail) != <span class="literal">null</span>)</span><br><span class="line">            <span class="keyword">return</span> t;</span><br><span class="line">        <span class="keyword">else</span> <span class="keyword">if</span> (head != <span class="literal">null</span>)</span><br><span class="line">            Thread.onSpinWait();</span><br><span class="line">        <span class="keyword">else</span> &#123;</span><br><span class="line">            <span class="keyword">if</span> (h == <span class="literal">null</span>) &#123;</span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                    h = <span class="keyword">new</span> <span class="title class_">ExclusiveNode</span>();</span><br><span class="line">                &#125; <span class="keyword">catch</span> (OutOfMemoryError oome) &#123;</span><br><span class="line">                    <span class="keyword">return</span> <span class="literal">null</span>;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> (U.compareAndSetReference(<span class="built_in">this</span>, HEAD, <span class="literal">null</span>, h))</span><br><span class="line">                <span class="type">return</span> <span class="variable">tail</span> <span class="operator">=</span> h;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>思考：如果有2个线程同时调用tryInitializeHead，thradA执行到h==null，切换到threadB，此时B也认为h==null<br>
+threadB让h指向创建的dummy1节点，此时切换到threadA，A会再创建一个dummy2节点，让h指向dummy2节点，是否会出现线程安全问题？<br>
+不会，虽然threadA创建了多余的dummy2节点，但是在cas设置head=h时，会首先判断head是否为null<br>
+不管threadA还是threadB哪个先成功执行cas，另一个线程都会进入到下一轮循环，认为tail!=null, 并且return，和步骤1形成闭环</p>
+<p>那么多余创建的dummy节点算不算浪费呢？<br>
+不会，多余的dummy节点会被gc回收，考虑以下代码<br>
+node改变指向后，第一个Node对象没有被引用，会被gc回收</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">Node</span> <span class="variable">node</span> <span class="operator">=</span> <span class="keyword">new</span> <span class="title class_">Node</span>();  <span class="comment">// 第一个对象</span></span><br><span class="line">node = <span class="keyword">new</span> <span class="title class_">Node</span>();       <span class="comment">// 第二个对象</span></span><br></pre></td></tr></table></figure>
+<h5 id="acquireOnOOME">acquireOnOOME</h5>
+<p>acquireOnOOME前文已提到该方法，调用tryAcquire系列方法，自旋重试直到成功获取锁<br>
+代码逻辑比较简单，我给2个辅助说明</p>
+<ol>
+<li>U.park(false, nanos); false表示相对时间，传入纳秒，阻塞当前线程，直到时间结束被唤醒</li>
+<li>n&lt;&lt;x 表示 n * 2^x</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="type">int</span> <span class="title function_">acquireOnOOME</span><span class="params">(<span class="type">boolean</span> shared, <span class="type">int</span> arg)</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">long</span> <span class="variable">nanos</span> <span class="operator">=</span> <span class="number">1L</span>;;) &#123;</span><br><span class="line">        <span class="keyword">if</span> (shared ? (tryAcquireShared(arg) &gt;= <span class="number">0</span>) : tryAcquire(arg))</span><br><span class="line">            <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">        U.park(<span class="literal">false</span>, nanos);               <span class="comment">// must use Unsafe park to sleep</span></span><br><span class="line">        <span class="keyword">if</span> (nanos &lt; <span class="number">1L</span> &lt;&lt; <span class="number">30</span>)               <span class="comment">// max about 1 second</span></span><br><span class="line">            nanos &lt;&lt;= <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="第四个if">第四个if</h4>
+<p>仅仅是初始化node，为入队做准备</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span> <span class="keyword">if</span> (node == <span class="literal">null</span>) &#123;          <span class="comment">// allocate; retry before enqueue</span></span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">        node = (shared) ? <span class="keyword">new</span> <span class="title class_">SharedNode</span>() : <span class="keyword">new</span> <span class="title class_">ExclusiveNode</span>();</span><br><span class="line">    &#125; <span class="keyword">catch</span> (OutOfMemoryError oome) &#123;</span><br><span class="line">        <span class="keyword">return</span> acquireOnOOME(shared, arg);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="第五个if">第五个if</h4>
+<p><strong>判断逻辑</strong>：pred==null在之前多次出现，表示node还没有入队<br>
+<strong>执行逻辑</strong>：</p>
+<ol>
+<li>封装node</li>
+<li>node.prev = tail</li>
+<li>设置node为新的tail<br>
+如果成功，原来tail.next = node<br>
+如果失败，设置node.prev = null, 其实是一个回滚操作，这样下一轮循环pred还是为null，重新尝试，可以说是一个巧妙的办法</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span> <span class="keyword">if</span> (pred == <span class="literal">null</span>) &#123;          <span class="comment">// try to enqueue</span></span><br><span class="line">    node.waiter = current;</span><br><span class="line">    node.setPrevRelaxed(t);         <span class="comment">// avoid unnecessary fence</span></span><br><span class="line">    <span class="keyword">if</span> (!casTail(t, node))</span><br><span class="line">        node.setPrevRelaxed(<span class="literal">null</span>);  <span class="comment">// back out</span></span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        t.next = node;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="第六个if">第六个if</h4>
+<p>如果是首节点，并且自旋次数!=0, 说明是要进行spins次尝试获取锁，而不是立刻进行park(阻塞)<br>
+前面我也提到了，新版的AQS会尽最大努力，延缓入队和线程阻塞的时机，从而减少线程上下文切换的开销</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span> <span class="keyword">if</span> (first &amp;&amp; spins != <span class="number">0</span>) &#123;</span><br><span class="line">    --spins;                        <span class="comment">// reduce unfairness on rewaits</span></span><br><span class="line">    Thread.onSpinWait();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>注意：此时node的status还是0</p>
+<h4 id="第七个if">第七个if</h4>
+<p>如果自旋次数也用完了，那么就是真的要被阻塞挂起了，设置node.status为WAITING</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span> <span class="keyword">if</span> (node.status == <span class="number">0</span>) &#123;</span><br><span class="line">    node.status = WAITING;          <span class="comment">// enable signal and recheck</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="第八个if">第八个if</h4>
+<p>最后就是真的要挂起线程了，执行逻辑：</p>
+<ol>
+<li>先重置自旋次数</li>
+<li>判断是否设置了超时阻塞<br>
+是：计算超时时间，并设置超时阻塞<br>
+否：直接阻塞</li>
+<li>else就比较有趣了，他表示虽然设置了超时时间，但是已经过期了，直接break，走return逻辑</li>
+<li>从park处被唤醒继续执行，首先去除status标志，表示空闲，随时准备进入等待</li>
+<li>如果线程被中断，并且acquire传入的参数interruptible=true，表示可以响应中断，直接，走return逻辑</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span> &#123;</span><br><span class="line">    <span class="type">long</span> nanos;</span><br><span class="line">    spins = postSpins = (<span class="type">byte</span>)((postSpins &lt;&lt; <span class="number">1</span>) | <span class="number">1</span>);</span><br><span class="line">    <span class="keyword">if</span> (!timed)</span><br><span class="line">        LockSupport.park(<span class="built_in">this</span>);</span><br><span class="line">    <span class="keyword">else</span> <span class="keyword">if</span> ((nanos = time - System.nanoTime()) &gt; <span class="number">0L</span>)</span><br><span class="line">        LockSupport.parkNanos(<span class="built_in">this</span>, nanos);</span><br><span class="line">    <span class="keyword">else</span></span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    node.clearStatus();</span><br><span class="line">    <span class="keyword">if</span> ((interrupted |= Thread.interrupted()) &amp;&amp; interruptible)</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="关于自旋次数spins与postSpins">关于自旋次数spins与postSpins</h4>
+<p>它们的作用是让线程在park之前先自旋spins次，尝试获取锁，次数用完就被park阻塞挂起，之后被其他线程unpark或parkNanos时间到期后，又再次自旋spins次进行获取锁，也就是在不断增大的spins和park之间来回切换<br>
+只不过这个spins每次减为0之后，都会增大，你大致可以理解为2^n -1</p>
+<p>具体计算规则如下：<br>
+首先它们都是byte类型，即8bit，范围为-128~127，也就是说spins在不断增大时，也是会溢出的，127溢出会变为-128<br>
+再执行spins–还有意义吗，有的，兄弟，有的，-128-1又再次溢出为127，所以spins其实是在循环中不断溢出的</p>
+<p>有兴趣的同学可以尝试下下面的代码</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">byte</span> <span class="variable">spins</span> <span class="operator">=</span> <span class="number">0</span>, postSpins = <span class="number">0</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="type">int</span> <span class="variable">i</span> <span class="operator">=</span> <span class="number">0</span>; i &lt; <span class="number">1000</span>; i++) &#123;</span><br><span class="line">    <span class="keyword">if</span> (spins != <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (spins == -<span class="number">128</span>)</span><br><span class="line">            System.out.println(<span class="string">&quot;        spins = &quot;</span> +spins+ <span class="string">&quot; overflowed negative spins = &quot;</span> + (<span class="type">byte</span>)(spins-<span class="number">1</span>));</span><br><span class="line">        spins--;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="type">byte</span> <span class="variable">tmp</span> <span class="operator">=</span> postSpins;</span><br><span class="line">        spins = postSpins = (<span class="type">byte</span>)((postSpins &lt;&lt; <span class="number">1</span>) | <span class="number">1</span>);</span><br><span class="line">        <span class="keyword">if</span> (spins &lt; <span class="number">0</span>)</span><br><span class="line">            System.out.println(<span class="string">&quot;postSpins = &quot;</span> +tmp+ <span class="string">&quot; overflowed positive spins = &quot;</span> + spins);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="return-cancelAcquire">return cancelAcquire</h3>
+<p>那么return cancelAcquire的实现是怎样呢</p>
+<ol>
+<li>如果node不为null，表示已入队<br>
+取消对线程的引用，设置为取消状态，清理队列中取消状态的节点</li>
+<li>中断处理，如果已经中断且可以响应中断，设置为取消状态<br>
+否则仅仅重置中断标志位<br>
+返回0，也是acquire方法的返回，表示取消获取锁</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="type">int</span> <span class="title function_">cancelAcquire</span><span class="params">(Node node, <span class="type">boolean</span> interrupted,</span></span><br><span class="line"><span class="params">                              <span class="type">boolean</span> interruptible)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (node != <span class="literal">null</span>) &#123;</span><br><span class="line">        node.waiter = <span class="literal">null</span>;</span><br><span class="line">        node.status = CANCELLED;</span><br><span class="line">        <span class="keyword">if</span> (node.prev != <span class="literal">null</span>)</span><br><span class="line">            cleanQueue();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (interrupted) &#123;</span><br><span class="line">        <span class="keyword">if</span> (interruptible)</span><br><span class="line">            <span class="keyword">return</span> CANCELLED;</span><br><span class="line">        <span class="keyword">else</span></span><br><span class="line">            Thread.currentThread().interrupt();</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="cleanQueue方法分析">cleanQueue方法分析</h3>
+<p>首先吐槽下这个方法的变量命名，全是p,q,s,n，完全不知所谓，所以我根据它们本身的含义，重新命名</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title function_">cleanQueue</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (;;) &#123;                                 </span><br><span class="line">        <span class="keyword">for</span> (<span class="type">Node</span> <span class="variable">current</span> <span class="operator">=</span> tail, next = <span class="literal">null</span>, prev, prevNext;;) &#123; </span><br><span class="line">            <span class="keyword">if</span> (current == <span class="literal">null</span> || (prev = current.prev) == <span class="literal">null</span>) </span><br><span class="line">                <span class="keyword">return</span>;                        </span><br><span class="line">            </span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> (next == <span class="literal">null</span> ? tail != current : (next.prev != current || next.status &lt; <span class="number">0</span>))</span><br><span class="line">                <span class="keyword">break</span>;                          </span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> (current.status &lt; <span class="number">0</span>) &#123;           </span><br><span class="line">                <span class="keyword">if</span> ((next == <span class="literal">null</span> ? casTail(current, prev) : next.casPrev(current, prev))</span><br><span class="line">                    &amp;&amp; current.prev == prev) &#123;</span><br><span class="line">                    prev.casNext(current, next); </span><br><span class="line">                    <span class="keyword">if</span> (prev.prev == <span class="literal">null</span>)       </span><br><span class="line">                        signalNext(prev);        </span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">            <span class="keyword">if</span> ((prevNext = prev.next) != current) &#123;</span><br><span class="line">                <span class="keyword">if</span> (prevNext != <span class="literal">null</span> &amp;&amp; current.prev == prev) &#123;</span><br><span class="line">                    prev.casNext(prevNext, current);  </span><br><span class="line">                    <span class="keyword">if</span> (prev.prev == <span class="literal">null</span>)</span><br><span class="line">                        signalNext(prev);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">break</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            </span><br><span class="line">            next = current;                    </span><br><span class="line">            current = current.prev;           </span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="执行逻辑">执行逻辑</h4>
+<p>将同步队列从后往前遍历，定义四个指针变量：</p>
+<ol>
+<li>current表示当前节点</li>
+<li>next表示当前节点的下一个节点</li>
+<li>prev表示当前节点的上一个节点</li>
+<li>prevNext表示prev下一个节点，正常情况下就是current，但是可能被其他线程修改，所以定义prevNext<br>
+<img src="https://pic1.imgdb.cn/item/67b723a1d0e0a243d4010cf6.png" alt="指针说明"></li>
+</ol>
+<p>第一个if表示已经遍历到了队首，即清理完成</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (current == <span class="literal">null</span> || (prev = current.prev) == <span class="literal">null</span>) </span><br><span class="line">    <span class="keyword">return</span>;   </span><br></pre></td></tr></table></figure>
+<p>第二个if的条件就很复杂，所以再次改写</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (next == <span class="literal">null</span> ? tail != current : (next.prev != current || next.status &lt; <span class="number">0</span>))</span><br><span class="line">    <span class="keyword">break</span>;</span><br><span class="line"><span class="comment">// 改写</span></span><br><span class="line"><span class="type">boolean</span> isErrorState;</span><br><span class="line"><span class="keyword">if</span> (next == <span class="literal">null</span>) &#123;</span><br><span class="line">    isErrorState = tail != current;</span><br><span class="line">&#125;  <span class="keyword">else</span> &#123;</span><br><span class="line">    isErrorState = next.prev != current || next.status &lt; <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> (isErrorState) &#123;</span><br><span class="line">    <span class="keyword">break</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>它是在判断当前节点的前驱和后继状态是否不正常，如果不正常，直接break，进入下一次循环<br>
+节点状态不正常有三种情况</p>
+<ol>
+<li>next == null表示当前节点为队尾，tail应该==current，否则不正常</li>
+<li>next的前驱是current，即next.prev == current，否则不正常</li>
+<li>next.status &lt; 0表示后继节点被取消了，表示不正常</li>
+</ol>
+<p>第三个if表示当前节点是取消状态, 那么就把当前节点从队列中移除，就是普通的双链表节点删除操作</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> (current.status &lt; <span class="number">0</span>) &#123;           </span><br><span class="line">    <span class="keyword">if</span> ((next == <span class="literal">null</span> ? casTail(current, prev) : next.casPrev(current, prev))</span><br><span class="line">        &amp;&amp; current.prev == prev) &#123;</span><br><span class="line">        prev.casNext(current, next); </span><br><span class="line">        <span class="keyword">if</span> (prev.prev == <span class="literal">null</span>)       </span><br><span class="line">            signalNext(prev);        </span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">break</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<ol>
+<li>如果当前节点是尾节点，那么直接把前驱节点设置为新的尾节点, 即casTail(current, prev)</li>
+<li>如果当前节点不是尾节点，那么把next的prev指向current的prev，即next.casPrev(current, prev))<br>
+并且保证当前节点的prev没有变，即current.prev == prev</li>
+<li>prev.next之前指向current，现在指向next，即prev.casNext(current, next)</li>
+<li>如果prev是head节点，即prev.prev == null，唤醒下一个阻塞等待的节点<br>
+<img src="https://pic1.imgdb.cn/item/67b723a1d0e0a243d4010cf7.png" alt="图1"><br>
+<img src="https://pic1.imgdb.cn/item/67b723a1d0e0a243d4010cf8.png" alt="图2"><br>
+<img src="https://pic1.imgdb.cn/item/67b726e7d0e0a243d4010d9d.png" alt="图3"></li>
+</ol>
+<p>思考：<br>
+如果casTail或者casPrev失败会有问题吗？<br>
+首先看失败的结果，直接break进入下一轮循环，失败的原因无非是有其他线程修改了链表结构，因此重新从tail开始遍历，这就是一种贪婪模式，一直循环直到成功</p>
+<p>为什么current.prev和current.next没有指向null？current会被gc回收吗<br>
+基于gc可达性分析，没有任何节点指向current，因此current不可达而被回收</p>
+<p>第四个if更多的是一种修复，如果前驱的next没有指向current，但是current的prev依然指向前驱,这一点从上面的图3也可以看出<br>
+那么修复前驱的next指向current<br>
+以下是修复过程：</p>
+<ol>
+<li>前驱的next不是current，说明需要修复</li>
+<li>prev不是head，current.prev还是指向pred，进行修复，否则说明prev和current不相连，跳过本次循环</li>
+<li>修复prev.next指向current，如果prev指向head，那么唤醒下一个节点</li>
+</ol>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> ((prevNext = prev.next) != current) &#123;</span><br><span class="line">    <span class="keyword">if</span> (prevNext != <span class="literal">null</span> &amp;&amp; current.prev == prev) &#123;</span><br><span class="line">        prev.casNext(prevNext, current);  </span><br><span class="line">        <span class="keyword">if</span> (prev.prev == <span class="literal">null</span>)</span><br><span class="line">            signalNext(prev);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">break</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h1>ReentrantLock释放锁锁过程</h1>
+<p>实际上unlock方法非常简单</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">unlock</span><span class="params">()</span> &#123;</span><br><span class="line">    sync.release(<span class="number">1</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">release</span><span class="params">(<span class="type">int</span> arg)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (tryRelease(arg)) &#123;</span><br><span class="line">        signalNext(head);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>看下tryRelease方法如何实现</p>
+<ol>
+<li>获取当前同步变量，减去释放的计数</li>
+<li>验证当前持有线程正确性，如果不是当前线程，抛出异常</li>
+<li>如果同步变量为0了，说明释放的计数=重入数了， 清除独占锁持有线程变量</li>
+<li>设置回同步变量</li>
+</ol>
+<p>全程不需要考虑线程安全问题，应该其他线程无法修改CLH队列节点和state同步变量</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">tryRelease</span><span class="params">(<span class="type">int</span> releases)</span> &#123;</span><br><span class="line">    <span class="type">int</span> <span class="variable">c</span> <span class="operator">=</span> getState() - releases;</span><br><span class="line">    <span class="keyword">if</span> (getExclusiveOwnerThread() != Thread.currentThread())</span><br><span class="line">        <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">IllegalMonitorStateException</span>();</span><br><span class="line">    <span class="type">boolean</span> <span class="variable">free</span> <span class="operator">=</span> (c == <span class="number">0</span>);</span><br><span class="line">    <span class="keyword">if</span> (free)</span><br><span class="line">        setExclusiveOwnerThread(<span class="literal">null</span>);</span><br><span class="line">    setState(c);</span><br><span class="line">    <span class="keyword">return</span> free;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里我需要澄清&quot;唤醒&quot;这个很有歧义的词，&quot;唤醒&quot;通常对应Object.notify()，或是Condition.signal()方法，但是在ReentrantLock.unlock释放锁时，线程是持有锁的。<br>
+而notify或signal是在线程持有锁是调用wait/await主动释放了锁，所以这里的&quot;唤醒&quot;是对应加锁过程线程从park方法的阻塞中被唤醒(unpark)</p>
+<p>执行逻辑：<br>
+从head节点开始，从前往后遍历CLH队列status不为0的节点，清除它的等待状态，唤醒等待的线程</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title function_">signalNext</span><span class="params">(Node h)</span> &#123;</span><br><span class="line">    Node s;</span><br><span class="line">    <span class="keyword">if</span> (h != <span class="literal">null</span> &amp;&amp; (s = h.next) != <span class="literal">null</span> &amp;&amp; s.status != <span class="number">0</span>) &#123;</span><br><span class="line">        s.getAndUnsetStatus(WAITING);</span><br><span class="line">        LockSupport.unpark(s.waiter);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>思考：为什么是status!=0，0为什么不行，如果线程被取消了怎么办？如果是COND条件等待状态怎么办？</p>
+<ol>
+<li>等于0表示线程节点还没入队，甚至可能还没成为节点，总之不在队列中</li>
+<li>取消状态的分析就比较麻烦了，先回顾什么情况下会被取消<br>
+1.加锁的第二个if出现异常 2.调用parkNanos出现时间过期 3.线程被中断<br>
+第1种情况又分为未入队和入队成为首节点，未入队好说，signalNext遍历不到<br>
+其他情况则是在入队情况下，需要cancelAcquire保证通过cleanQueue来清理取消了的节点</li>
+<li>条件等待状态需要先释放锁，线程从同步队列进入等待队列，所以同步队列节点不可能存在COND状态</li>
+</ol>
+<h1>公平锁</h1>
+<p>以上是关于非公平锁的分析，公平锁的加锁/释放锁只有细微的区别，下面做一下分析</p>
+<h2 id="加锁">加锁</h2>
+<p>公平锁的加锁和非公平锁的加锁基本一致，唯一不同的是，公平锁的加锁会先判断队列是否为空，主要体现在initialTryLock和tryAcquire方法中</p>
+<h3 id="initialTryLock区别">initialTryLock区别</h3>
+<p>这里代码和公平锁大致一样，只是在发现同步变量为0，加锁之前调用hasQueuedThreads判断队列里是否有线程<br>
+ps: 说实话写的有点啰嗦，应该把公共代码提取到父类的模板方法里</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">initialTryLock</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="type">Thread</span> <span class="variable">current</span> <span class="operator">=</span> Thread.currentThread();</span><br><span class="line">    <span class="type">int</span> <span class="variable">c</span> <span class="operator">=</span> getState();</span><br><span class="line">    <span class="keyword">if</span> (c == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!hasQueuedThreads() &amp;&amp; compareAndSetState(<span class="number">0</span>, <span class="number">1</span>)) &#123;</span><br><span class="line">            setExclusiveOwnerThread(current);</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> (getExclusiveOwnerThread() == current) &#123;</span><br><span class="line">        <span class="keyword">if</span> (++c &lt; <span class="number">0</span>) <span class="comment">// overflow</span></span><br><span class="line">            <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">Error</span>(<span class="string">&quot;Maximum lock count exceeded&quot;</span>);</span><br><span class="line">        setState(c);</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="hasQueuedThreads实现">hasQueuedThreads实现</h4>
+<p>实现比较简单，从同步队列的tail开始遍历，如果节点状态大于等于0，则说明有线程在等待，返回true<br>
+说明下status&gt;0表示线程在等待，等于0表示线程从park唤醒，重新开始获取锁</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">hasQueuedThreads</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="keyword">for</span> (<span class="type">Node</span> <span class="variable">p</span> <span class="operator">=</span> tail, h = head; p != h &amp;&amp; p != <span class="literal">null</span>; p = p.prev)</span><br><span class="line">        <span class="keyword">if</span> (p.status &gt;= <span class="number">0</span>)</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="tryAcquire区别">tryAcquire区别</h3>
+<p>同样吐槽啰嗦，为什么不放到Sync里</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">tryAcquire</span><span class="params">(<span class="type">int</span> acquires)</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> (getState() == <span class="number">0</span> &amp;&amp; !hasQueuedPredecessors() &amp;&amp;</span><br><span class="line">        compareAndSetState(<span class="number">0</span>, acquires)) &#123;</span><br><span class="line">        setExclusiveOwnerThread(Thread.currentThread());</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="hasQueuedPredecessors">hasQueuedPredecessors</h4>
+<p>首先这个方法可读性很差，我们先改写下</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">hasQueuedPredecessors</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="type">Thread</span> <span class="variable">first</span> <span class="operator">=</span> <span class="literal">null</span>; Node h, s;</span><br><span class="line">    <span class="keyword">if</span> ((h = head) != <span class="literal">null</span> &amp;&amp; ((s = h.next) == <span class="literal">null</span> ||</span><br><span class="line">                                (first = s.waiter) == <span class="literal">null</span> ||</span><br><span class="line">                                s.prev == <span class="literal">null</span>))</span><br><span class="line">        first = getFirstQueuedThread(); <span class="comment">// retry via getFirstQueuedThread</span></span><br><span class="line">    <span class="keyword">return</span> first != <span class="literal">null</span> &amp;&amp; first != Thread.currentThread();</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//改写</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> <span class="type">boolean</span> <span class="title function_">hasQueuedPredecessors</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="type">Node</span> <span class="variable">headPtr</span> <span class="operator">=</span> head;</span><br><span class="line">    <span class="type">Node</span> <span class="variable">firstNode</span> <span class="operator">=</span> headPtr.next;</span><br><span class="line">    <span class="type">Thread</span> <span class="variable">firstThread</span> <span class="operator">=</span> firstNode.waiter;</span><br><span class="line">    <span class="keyword">if</span> (headPtr != <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (firstNode == <span class="literal">null</span> || firstThread == <span class="literal">null</span> || firstNode.prev == <span class="literal">null</span>) &#123;</span><br><span class="line">            first = getFirstQueuedThread();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (firstThread != <span class="literal">null</span> &amp;&amp; firstThread != Thread.currentThread()) </span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>定义了3个变量：headPtr指向head节点，firstNode指向首节点，firstThread表示首节点的等待线程<br>
+if判断: 如果队列不为空，则判断以下三个条件之一</p>
+<ol>
+<li>首节点为空，表示没有等待中的节点</li>
+<li>首节点的等待线程为空，有可能节点处于取消状态，见<a href="#return-cancelAcquire">return-cancelAcquire</a></li>
+<li>首节点的prev应该指向head，但如果指向了null，说明首节点已经获取到了锁，是让head节点出队的中间态，见<a href="#%E7%AC%AC%E4%BA%8C%E4%B8%AAif">第二个if</a>的执行逻辑</li>
+</ol>
+<p>以上条件均表示firstThread = firstNode.waiter不成立，需要重新获取，也就是调用getFirstQueuedThread<br>
+最后返回值表示首节点的等待线程存在，并且不是当前线程，也就是说公平锁在发现队列有等待线程的时候，不会继续获取锁</p>
+<p>getFirstQueuedThread很简单，从头到尾遍历，获取第一个等待线程不为空的节点，并返回等待线程<br>
+ps：不知道为什么有一模一样的判断条件，只能说啰嗦且不合理</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> Thread <span class="title function_">getFirstQueuedThread</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="type">Thread</span> <span class="variable">first</span> <span class="operator">=</span> <span class="literal">null</span>, w; Node h, s;</span><br><span class="line">    <span class="keyword">if</span> ((h = head) != <span class="literal">null</span> &amp;&amp; ((s = h.next) == <span class="literal">null</span> ||</span><br><span class="line">                                (first = s.waiter) == <span class="literal">null</span> ||</span><br><span class="line">                                s.prev == <span class="literal">null</span>)) &#123;</span><br><span class="line">        <span class="comment">// traverse from tail on stale reads</span></span><br><span class="line">        <span class="keyword">for</span> (<span class="type">Node</span> <span class="variable">p</span> <span class="operator">=</span> tail, q; p != <span class="literal">null</span> &amp;&amp; (q = p.prev) != <span class="literal">null</span>; p = q)</span><br><span class="line">            <span class="keyword">if</span> ((w = p.waiter) != <span class="literal">null</span>)</span><br><span class="line">                first = w;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> first;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// 改写</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">final</span> Thread <span class="title function_">getFirstQueuedThread</span><span class="params">()</span> &#123;</span><br><span class="line">    <span class="type">Node</span> <span class="variable">headPtr</span> <span class="operator">=</span> head;</span><br><span class="line">    <span class="type">Node</span> <span class="variable">firstNode</span> <span class="operator">=</span> headPtr.next;</span><br><span class="line">    Thread firstThread;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (headPtr != <span class="literal">null</span>) &#123;</span><br><span class="line">        <span class="keyword">if</span> (firstNode == <span class="literal">null</span> || firstThread == <span class="literal">null</span> || firstNode.prev == <span class="literal">null</span>) &#123;</span><br><span class="line">            <span class="type">Node</span> <span class="variable">current</span> <span class="operator">=</span> tail;</span><br><span class="line">            <span class="type">Node</span> <span class="variable">prev</span> <span class="operator">=</span> current.prev;</span><br><span class="line">            Thread waiter;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">while</span>(current!= <span class="literal">null</span> &amp;&amp; prev != <span class="literal">null</span>) &#123;</span><br><span class="line">                waiter = current.waiter;</span><br><span class="line">                <span class="keyword">if</span>(waiter != <span class="literal">null</span>) &#123;</span><br><span class="line">                    firstThread = current.waiter;</span><br><span class="line">                &#125;</span><br><span class="line">                current = prev;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> firstThread;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>至于公平锁的释放，和非公平锁一样</p>
+<h1>参考</h1>
+<p><a target="_blank" rel="noopener" href="https://bugs.openjdk.org/browse/JDK-8229442">JDK-8229442</a><br>
+<a target="_blank" rel="noopener" href="https://bugs.openjdk.org/browse/JDK-8317960">JDK-8317960</a></p>
+</div></article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="mailto:undefined">紫夜</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="https://greedypirate.github.io/2024/02/17/JDK14更新后的AQS源码解读/">https://greedypirate.github.io/2024/02/17/JDK14更新后的AQS源码解读/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a target="_blank" rel="noopener" href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://greedypirate.github.io">紫夜の博客</a>！</span></div></div><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E7%A7%AF%E7%B4%AF/">积累</a></div><div class="social-share pull-right"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/social-share.js@1.0.16/dist/css/share.min.css"><script src="https://cdn.jsdelivr.net/npm/social-share.js@1.0.16/dist/js/social-share.min.js"></script><nav id="pagination"><div class="prev-post pull-left"><a href="/2025/02/19/%E5%85%B3%E4%BA%8E%E9%94%81%E7%9A%84%E4%B8%80%E4%BA%9B%E6%80%9D%E8%80%83/"><i class="fa fa-chevron-left">  </i><span>关于锁的一些思考</span></a></div><div class="next-post pull-right"><a href="/2022/12/17/kafka-server%E7%AB%AF%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90%E4%B9%8B%E6%8B%89%E5%8F%96%E6%B6%88%E6%81%AF/"><span>kafka server端源码分析之拉取消息</span><i class="fa fa-chevron-right"></i></a></div></nav><div id="gitalk-container"></div><script>var gitalk = new Gitalk({
+  clientID: '0349a7a18b86f2a653e3',
+  clientSecret: '567ba8cefbe2ecffbbc04e676652ae4b43e7f952',
+  repo: 'GreedyPirate.github.io',
+  owner: 'GreedyPirate',
+  admin: 'GreedyPirate',
+  id: md5(decodeURI(location.pathname)),
+  language: 'zh-CN'
+})
+gitalk.render('gitalk-container')</script></div></div><footer class="footer-bg" style="background-image: url(https://pic1.imgdb.cn/item/67b2fd4ed0e0a243d4003518.webp)"><div class="layout" id="footer"><div class="copyright">&copy;2019 - 2025 By 紫夜</div><div class="framework-info"><span>驱动 - </span><a target="_blank" rel="noopener" href="http://hexo.io"><span>Hexo</span></a><span class="footer-separator">|</span><span>主题 - </span><a target="_blank" rel="noopener" href="https://github.com/Molunerfinn/hexo-theme-melody"><span>Melody</span></a></div><div class="footer_custom_text">stay hungry, stay foolish</div><div class="busuanzi"><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><span id="busuanzi_container_page_pv"><i class="fa fa-file"></i><span id="busuanzi_value_page_pv"></span><span></span></span></div></div></footer><i class="fa fa-arrow-up" id="go-up" aria-hidden="false"></i><script src="https://cdn.jsdelivr.net/npm/animejs@latest/lib/anime.min.js"></script><script src="https://cdn.jsdelivr.net/npm/jquery@latest/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/fancybox@latest/dist/jquery.fancybox.min.js"></script><script src="https://cdn.jsdelivr.net/npm/velocity-animate@latest/velocity.min.js"></script><script src="https://cdn.jsdelivr.net/npm/velocity-ui-pack@latest/velocity.ui.min.js"></script><script src="/js/utils.js?version=1.9.1"></script><script src="/js/fancybox.js?version=1.9.1"></script><script src="/js/sidebar.js?version=1.9.1"></script><script src="/js/copy.js?version=1.9.1"></script><script src="/js/fireworks.js?version=1.9.1"></script><script src="/js/transition.js?version=1.9.1"></script><script src="/js/scroll.js?version=1.9.1"></script><script src="/js/head.js?version=1.9.1"></script><link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/katex@latest/dist/katex.min.css"><script src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script><link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css"><script src="/js/katex.js"></script><script src="/js/search/local-search.js"></script><script type="text/javascript" id="maid-script" src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script><script>if (window.mermaid) {
+  mermaid.initialize({ startOnLoad: true });
+}
+</script><script>if(/Android|webOS|iPhone|iPod|iPad|BlackBerry/i.test(navigator.userAgent)) {
+  $('#nav').addClass('is-mobile')
+  $('footer').addClass('is-mobile')
+  $('#top-container').addClass('is-mobile')
+}</script><div class="search-dialog" id="local-search"><div class="search-dialog__title" id="local-search-title">本地搜索</div><div id="local-input-panel"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章"></div></div></div><hr><div id="local-search-results"><div id="local-hits"></div><div id="local-stats"><div class="local-search-stats__hr" id="hr"><span>由</span> <a target="_blank" rel="noopener" href="https://github.com/wzpan/hexo-generator-search" style="color:#49B1F5;">hexo-generator-search</a>
+ <span>提供支持</span></div></div></div><span class="search-close-button"><i class="fa fa-times"></i></span></div><div class="search-mask"></div></body></html>
